@@ -154,6 +154,19 @@ function parseProductPage(text, url, images) {
   };
 }
 
+function assertProductPage(raw) {
+  const url = raw.url || '';
+  const text = raw.text || '';
+  if (/\/psnl_verification\.html/.test(url) || /VerifyAuthToken=/.test(url)) {
+    throw new Error(
+      'Pinduoduo opened a personal verification page. Run login/headful with the same profile, complete verification, close Chrome, then retry fetch.'
+    );
+  }
+  if (/登录|扫码登录|手机登录/.test(text)) {
+    throw new Error(`Product page requires login.`);
+  }
+}
+
 function parseTags(lines) {
   const tags = [];
   for (const line of lines) {
@@ -224,10 +237,18 @@ async function fetchProduct(args) {
   const page = await context.newPage();
   try {
     const productRaw = await readPage(page, inputUrl);
-    if (/登录|扫码登录|手机登录/.test(productRaw.text)) {
-      throw new Error(`Product page requires login. Run: npm run pdd -- login --profile "${profileDir}"`);
+    try {
+      assertProductPage(productRaw);
+    } catch (error) {
+      if (error.message === 'Product page requires login.') {
+        throw new Error(`Product page requires login. Run: npm run pdd -- login --profile "${profileDir}"`);
+      }
+      throw error;
     }
     const product = parseProductPage(productRaw.text, productRaw.url, productRaw.images);
+    if (!product.title && !product.price && !product.reviewCount && product.images.length === 0) {
+      throw new Error('Product data was not extracted. The page may be blocked, translated unexpectedly, or still loading.');
+    }
 
     const commentsRaw = await readPage(page, commentsUrl(productRaw.url));
     const comments = parseComments(commentsRaw.text);
