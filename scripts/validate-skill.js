@@ -7,7 +7,7 @@ function fail(message) {
   process.exit(1);
 }
 
-const skill = fs.readFileSync('SKILL.md', 'utf8');
+const skill = fs.readFileSync('SKILL.md', 'utf8').replace(/^\uFEFF/, '');
 if (!skill.startsWith('---\n')) fail('SKILL.md must start with YAML frontmatter.');
 
 const end = skill.indexOf('\n---\n', 4);
