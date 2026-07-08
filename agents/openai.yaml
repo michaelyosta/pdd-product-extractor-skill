@@ -1,0 +1,4 @@
+interface:
+  display_name: "PDD Product Extractor"
+  short_description: "Extract product and review data from Pinduoduo/Yangkeduo links."
+  default_prompt: "Extract product details and review signals from this Pinduoduo/Yangkeduo link."

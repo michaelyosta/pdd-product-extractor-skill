@@ -1,0 +1,4 @@
+node_modules/
+*.log
+product.json
+product.md

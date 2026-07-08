@@ -1,0 +1,13 @@
+{
+  "name": "pdd-product-extractor-skill",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "pdd": "node ./scripts/pdd-product.js",
+    "test": "node --check ./scripts/pdd-product.js && node ./scripts/validate-skill.js && node ./scripts/pdd-product.js --help"
+  },
+  "dependencies": {
+    "playwright-core": "^1.56.1"
+  }
+}
