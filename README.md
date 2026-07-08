@@ -56,9 +56,20 @@ If headless Chrome is blocked, retry visibly:
 npm.cmd run pdd -- fetch "https://mobile.yangkeduo.com/goods2.html?ps=..." --headful --format markdown
 ```
 
+## Security Verification
+
+Pinduoduo can redirect some links to `psnl_verification.html` and show a captcha/security button. Use the interactive verification command:
+
+```powershell
+npm.cmd run pdd -- verify "https://mobile.yangkeduo.com/goods2.html?ps=..."
+```
+
+Complete the security check in Chrome, then return to the terminal and press Enter. The CLI closes Chrome cleanly so cookies and verification state are saved. Then run `fetch` again.
+
 ## Data Extracted
 
 - product title, price, sales count, coupon, delivery text
+- availability and sold-out/unavailable reason when present
 - store name and store sales count
 - product attributes such as shipping origin, material, features, finish
 - product image URLs

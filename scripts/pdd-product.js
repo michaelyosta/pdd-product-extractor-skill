@@ -15,10 +15,12 @@ function usage() {
 
 Usage:
   pdd-product login [--profile .pdd-profile]
+  pdd-product verify <url> [--profile .pdd-profile]
   pdd-product fetch <url> [--format json|markdown] [--out file] [--profile .pdd-profile] [--headful]
 
 Examples:
   npm run pdd -- login
+  npm run pdd -- verify "https://mobile.yangkeduo.com/goods2.html?ps=..."
   npm run pdd -- fetch "https://mobile.yangkeduo.com/goods2.html?ps=..." --format markdown
   npm run pdd -- fetch "https://mobile.yangkeduo.com/goods2.html?ps=..." --out product.json
 `;
@@ -33,7 +35,7 @@ function parseArgs(argv) {
       continue;
     }
     const key = item.slice(2);
-    if (key === 'headful' || key === 'help') {
+    if (key === 'headful' || key === 'help' || key === 'raw') {
       args[key] = true;
       continue;
     }
@@ -112,6 +114,7 @@ function parsePrice(lines) {
 
 function parseProductPage(text, url, images) {
   const lines = cleanLines(text);
+  const unavailableReason = lines.find((line) => /商品已售罄|已下架|sold out|unavailable/i.test(line)) || null;
   const deliveryIndex = lines.findIndex((line) => /预计.*送达|Ожидаемая доставка/i.test(line));
   const title =
     deliveryIndex >= 0 && lines[deliveryIndex + 1] && !/人在拼|参与|В групповой/.test(lines[deliveryIndex + 1])
@@ -140,6 +143,8 @@ function parseProductPage(text, url, images) {
   return {
     url,
     goodsId: extractGoodsId(url),
+    availability: unavailableReason ? 'unavailable' : 'available',
+    unavailableReason,
     title,
     price: parsePrice(lines),
     sold: firstMatch(text, [/已拼([^\n]+件)/, /приобретено более ([^\n.]+товаров)/i]),
@@ -226,6 +231,19 @@ async function login(args) {
   await context.close();
 }
 
+async function verify(args) {
+  const inputUrl = args._[1];
+  if (!inputUrl) throw new Error('Missing product URL.');
+  const profileDir = path.resolve(args.profile || defaultProfileDir);
+  const context = await openContext({ profileDir, headless: false });
+  const page = await context.newPage();
+  await page.goto(inputUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  console.log(`Chrome opened with profile: ${profileDir}`);
+  console.log('Complete Pinduoduo login/security verification in the opened window, then press Enter here to close the browser.');
+  await new Promise((resolve) => process.stdin.once('data', resolve));
+  await context.close();
+}
+
 async function fetchProduct(args) {
   const inputUrl = args._[1];
   if (!inputUrl) throw new Error('Missing product URL.');
@@ -246,7 +264,7 @@ async function fetchProduct(args) {
       throw error;
     }
     const product = parseProductPage(productRaw.text, productRaw.url, productRaw.images);
-    if (!product.title && !product.price && !product.reviewCount && product.images.length === 0) {
+    if (!product.unavailableReason && !product.title && !product.price && !product.reviewCount && product.images.length === 0) {
       throw new Error('Product data was not extracted. The page may be blocked, translated unexpectedly, or still loading.');
     }
 
@@ -300,6 +318,8 @@ function toMarkdown(data) {
 
 - URL: ${p.url}
 - Goods ID: ${p.goodsId || ''}
+- Availability: ${p.availability || ''}
+- Unavailable reason: ${p.unavailableReason || ''}
 - Title: ${p.title || ''}
 - Price: ${p.price || ''}
 - Sold: ${p.sold || ''}
@@ -333,11 +353,19 @@ async function main() {
     return;
   }
   if (command === 'login') return login(args);
+  if (command === 'verify') return verify(args);
   if (command === 'fetch') return fetchProduct(args);
   throw new Error(`Unknown command: ${command}\n\n${usage()}`);
 }
 
 main().catch((error) => {
-  console.error(`Error: ${error.message}`);
+  const message = error.message || String(error);
+  if (/Target page, context or browser has been closed|process did exit|remote-debugging-pipe/i.test(message)) {
+    console.error(
+      `Error: Chrome could not start with the PDD profile. Close any Chrome window using ${defaultProfileDir}, then retry.`
+    );
+  } else {
+    console.error(`Error: ${message}`);
+  }
   process.exitCode = 1;
 });
